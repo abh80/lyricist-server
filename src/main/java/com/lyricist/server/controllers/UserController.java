@@ -51,7 +51,7 @@ class UserController {
         User save = userRepository.save(new User(uid, (String) body.get("name"), new String[]{"user"}, (String) body.get("email"), (String) body.get("image"), (String) body.get("password"), UserUtils.generateToken(uid)));
         return new ResponseEntity<>(save, HttpStatus.OK);
     }
-
+    @GetMapping("/users/")
     @GetMapping("/users/me")
     ResponseEntity<?> getMe(@RequestHeader(required = false) Map<String, String> headers) {
         if (headers == null) {
@@ -61,12 +61,14 @@ class UserController {
         }
         String authHeader = (String) headers.get("authorization");
         if (authHeader.toLowerCase().startsWith("bearer")) {
+            if (authHeader.split(" ").length != 2)
+                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
             String token = authHeader.split(" ")[1];
             User user = userRepository.findUserByToken(token);
             if (user != null) {
                 return new ResponseEntity<>(user, HttpStatus.OK);
-            }
-            else return new ResponseEntity<>(new ErrorJson("Invalid token provided." , 400 , "Bad Request") , HttpStatus.BAD_REQUEST);
+            } else
+                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         } else {
             return new ResponseEntity<>(new ErrorJson("`authorization` field has an incorrect prefix.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         }
