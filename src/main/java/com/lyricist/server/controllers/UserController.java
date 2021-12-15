@@ -1,5 +1,6 @@
 package com.lyricist.server.controllers;
 
+import com.lyricist.server.Util;
 import com.lyricist.server.database.User;
 import com.lyricist.server.database.UserRepository;
 import com.lyricist.server.utils.ErrorJson;
@@ -14,6 +15,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.time.Instant;
 import java.util.*;
 
@@ -101,7 +103,7 @@ class UserController {
             mailMessage.setFrom("lyricistms@gmail.com");
             mailMessage.setTo(user.getEmail());
             mailMessage.setSubject("Your one time login code is: " + otp);
-            mailMessage.setText("LOL");
+            mailMessage.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/OtpTemplate.html").replace("${name}", user.getName()).replace("${code}", Integer.toString(otp)));
             javaMailSender.send(mailMessage);
             tempUsers.put(session, new UserSessionModel(user, otp));
 
