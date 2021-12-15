@@ -15,7 +15,15 @@ public class UserUtils {
         }
         return uid.toString();
     }
-
+    public static String generateSession(){
+        int total_chars = 24;
+        String chars = "abcdefghijklmnopqrstuvwxyz1234567890";
+        StringBuilder str = new StringBuilder();
+        for (int i = 0; i <= total_chars; i++) {
+            str.append(chars.charAt((int) Math.floor(Math.random() * (chars.length() - 1))));
+        }
+        return str.toString();
+    }
     public static boolean validateEmail(String email) {
         String regex = "^[\\w-_\\.+]*[\\w-_\\.]\\@([\\w]+\\.)+[\\w]+[\\w]$";
         return email.matches(regex);

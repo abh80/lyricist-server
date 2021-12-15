@@ -4,14 +4,18 @@ import com.lyricist.server.database.User;
 import com.lyricist.server.database.UserRepository;
 import com.lyricist.server.utils.ErrorJson;
 import com.lyricist.server.utils.PrivateUser;
+import com.lyricist.server.utils.UserSessionModel;
 import com.lyricist.server.utils.UserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+
+import java.time.Instant;
+import java.util.*;
 
 @RestController
 @RequestMapping(value = "/api/v1")
@@ -20,12 +24,48 @@ class UserController {
     @Autowired
     private final UserRepository userRepository;
 
-    public UserController(UserRepository userRepository) {
+    @Autowired
+    JavaMailSender javaMailSender;
+    private final HashMap<String, UserSessionModel> tempUsers = new HashMap<>();
 
+    public UserController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
-    @PostMapping(value = "/users")
+
+    @Scheduled(fixedRate = 180000)
+    void purgeSessions() {
+        tempUsers.forEach((String v, UserSessionModel u) -> {
+            if ((Instant.now().toEpochMilli() - u.time) >= 1800000) {
+                tempUsers.remove(v);
+            }
+        });
+    }
+
+    @PostMapping("/sessions/{id}/verify")
+    ResponseEntity<?> verifySession(@PathVariable String id, @RequestBody Map<String, String> body) {
+        if (id == null)
+            return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (tempUsers.get(id) == null)
+            return new ResponseEntity<>(new ErrorJson("Invalid session key was provided or the session has expired.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body == null)
+            return new ResponseEntity<>(new ErrorJson("body is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body.get("otp") == null)
+            return new ResponseEntity<>(new ErrorJson("`otp` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        UserSessionModel sessionModel = tempUsers.get(id);
+        try {
+            if (sessionModel.otp == Integer.parseInt(body.get("otp"))) {
+                User save = userRepository.save(sessionModel.user);
+                tempUsers.remove(id);
+                return new ResponseEntity<>(save, HttpStatus.OK);
+            } else
+                return new ResponseEntity<>(new ErrorJson("Invalid otp was provided try again.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorJson("Invalid otp was provided try again.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/users")
     ResponseEntity<?> createUser(@RequestBody(required = false) Map<String, Object> body) {
 
         if (body == null) {
@@ -49,8 +89,30 @@ class UserController {
         while (userRepository.findById(uid).isPresent()) {
             uid = UserUtils.generateUID();
         }
-        User save = userRepository.save(new User(uid, (String) body.get("name"), new String[]{"user"}, (String) body.get("email"), (String) body.get("image"), (String) body.get("password"), UserUtils.generateToken(uid)));
-        return new ResponseEntity<>(new PrivateUser(save), HttpStatus.OK);
+        User user = new User(uid, (String) body.get("name"), new String[]{"user"}, (String) body.get("email"), (String) body.get("image"), (String) body.get("password"), UserUtils.generateToken(uid));
+        int otp = new Random().nextInt(900000) + 100000;
+        String session = UserUtils.generateSession();
+        while (tempUsers.get(session) != null) {
+            session = UserUtils.generateSession();
+        }
+        // TODO: check if email already exists in `tempUsers`
+        try {
+            SimpleMailMessage mailMessage = new SimpleMailMessage();
+            mailMessage.setFrom("lyricistms@gmail.com");
+            mailMessage.setTo(user.getEmail());
+            mailMessage.setSubject("Your one time login code is: " + otp);
+            mailMessage.setText("LOL");
+            javaMailSender.send(mailMessage);
+            tempUsers.put(session, new UserSessionModel(user, otp));
+
+            HashMap<String, String> resp = new HashMap<>();
+            resp.put("success", "true");
+            resp.put("session", session);
+
+            return new ResponseEntity<>(resp, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorJson("Invalid email address.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
     }
 
     @GetMapping("/users/d/{id}")
@@ -67,14 +129,23 @@ class UserController {
     }
 
     @GetMapping("/users/search")
-    ResponseEntity<?> searchUser(@RequestParam Map<String, String> query) {
+    ResponseEntity<?> searchUser(@RequestParam(required = false) Map<String, String> query) {
+        int limit = 5;
         if (query == null)
-            return new ResponseEntity<>(new ErrorJson("`q` param is missing", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
-        if (query.get("q").isEmpty()) {
-            return new ResponseEntity<>(new ErrorJson("`q` param is missing", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (query.get("q") == null || query.get("q").isEmpty()) {
+            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         }
-        List<User> users = userRepository.findUserByName(query.get("q"));
-        return new ResponseEntity<>(users, HttpStatus.OK);
+        if (query.get("limit") != null && !query.get("limit").isEmpty()) {
+            try {
+                limit = Integer.parseInt(query.get("limit"));
+            } catch (Exception e) {
+                return new ResponseEntity<>(new ErrorJson("`limit` should contain an integer.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        List<User> users = userRepository.findByNameStartingWith(query.get("q"));
+        return new ResponseEntity<>(users.subList(0, limit), HttpStatus.OK);
     }
 
     @GetMapping("/users/me")
@@ -84,7 +155,7 @@ class UserController {
         } else if (headers.get("authorization") == null) {
             return new ResponseEntity<>(new ErrorJson("`authorization` field is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         }
-        String authHeader = (String) headers.get("authorization");
+        String authHeader = headers.get("authorization");
         if (authHeader.toLowerCase().startsWith("bearer")) {
             if (authHeader.split(" ").length != 2)
                 return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);

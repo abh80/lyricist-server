@@ -13,6 +13,5 @@ public interface UserRepository extends MongoRepository<User, String> {
     @Query("{token :?0}")
     User findUserByToken(String token);
 
-    @Query("{name :  { $regex: ?0 } }")
-    List<User> findUserByName(String name);
+    List<User> findByNameStartingWith(String regexp);
 }
