@@ -1,5 +1,6 @@
 package com.lyricist.server.database;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -10,9 +11,15 @@ public class User {
     private String id;
     private String name;
     private String[] role;
-    private String email;
     private String image;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String email;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
+
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String token;
 
     public User(String id, String name, String[] role, String email, String image, String password, String token) {
