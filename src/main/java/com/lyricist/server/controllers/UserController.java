@@ -46,7 +46,7 @@ class UserController {
         });
         tempUserReset.forEach((String v, UserSessionModel u) -> {
             if ((Instant.now().toEpochMilli() - u.time) >= 1800000) {
-                tempUsers.remove(v);
+                tempUserReset.remove(v);
             }
         });
     }

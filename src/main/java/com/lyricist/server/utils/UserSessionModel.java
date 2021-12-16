@@ -9,14 +9,22 @@ public class UserSessionModel {
     public int otp;
     public long time;
     public String pin;
+    public int tries = 0;
+
     public UserSessionModel(User user, int otp) {
         this.user = user;
         this.otp = otp;
         this.time = Instant.now().toEpochMilli();
     }
+
     public UserSessionModel(User user, String pin) {
         this.user = user;
         this.pin = pin;
         this.time = Instant.now().toEpochMilli();
+    }
+
+    public int addTry() {
+        this.tries = this.tries + 1;
+        return this.tries;
     }
 }
