@@ -12,9 +12,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
+import javax.mail.internet.MimeMessage;
 import java.io.File;
 import java.time.Instant;
 import java.util.*;
@@ -59,7 +61,7 @@ class UserController {
             if (sessionModel.otp == Integer.parseInt(body.get("otp"))) {
                 User save = userRepository.save(sessionModel.user);
                 tempUsers.remove(id);
-                return new ResponseEntity<>(save, HttpStatus.OK);
+                return new ResponseEntity<>(new PrivateUser(save), HttpStatus.OK);
             } else
                 return new ResponseEntity<>(new ErrorJson("Invalid otp was provided try again.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
@@ -97,15 +99,23 @@ class UserController {
         while (tempUsers.get(session) != null) {
             session = UserUtils.generateSession();
         }
-        // TODO: check if email already exists in `tempUsers`
+
         try {
-            SimpleMailMessage mailMessage = new SimpleMailMessage();
-            mailMessage.setFrom("lyricistms@gmail.com");
-            mailMessage.setTo(user.getEmail());
+            MimeMessage mailMessage = javaMailSender.createMimeMessage();
+
             mailMessage.setSubject("Your one time login code is: " + otp);
-            mailMessage.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/OtpTemplate.html").replace("${name}", user.getName()).replace("${code}", Integer.toString(otp)));
+            MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mailMessage, true);
+            mimeMessageHelper.setTo(user.getEmail());
+            mimeMessageHelper.setFrom("lyricistms@gmail.com");
+            mimeMessageHelper.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/OtpTemplate.html").replace("${name}", user.getName()).replace("${code}", Integer.toString(otp)), true);
             javaMailSender.send(mailMessage);
-            tempUsers.put(session, new UserSessionModel(user, otp));
+            UserSessionModel sessionModel = new UserSessionModel(user, otp);
+            if (tempUsers.containsValue(sessionModel)) {
+                tempUsers.forEach((String v, UserSessionModel u) -> {
+                    if (u.user.getEmail().equals(user.getEmail())) tempUsers.remove(v);
+                });
+            }
+            tempUsers.put(session, sessionModel);
 
             HashMap<String, String> resp = new HashMap<>();
             resp.put("success", "true");
@@ -148,6 +158,20 @@ class UserController {
 
         List<User> users = userRepository.findByNameStartingWith(query.get("q"));
         return new ResponseEntity<>(users.subList(0, limit), HttpStatus.OK);
+    }
+
+    @PostMapping("/s/login")
+    ResponseEntity<?> login(@RequestBody(required = false) Map<String, String> body) {
+        if (body == null)
+            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body.get("email") == null || body.get("email").isEmpty())
+            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        else if (body.get("password") == null || body.get("password").isEmpty())
+            return new ResponseEntity<>(new ErrorJson("`password` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        User user = userRepository.findUserByCredentials(body.get("email"), body.get("password"));
+        if (user == null)
+            return new ResponseEntity<>(new ErrorJson("Credentials are invalid.", 401, "Unauthorized"), HttpStatus.UNAUTHORIZED);
+        else return new ResponseEntity<>(new PrivateUser(user), HttpStatus.OK);
     }
 
     @GetMapping("/users/me")
