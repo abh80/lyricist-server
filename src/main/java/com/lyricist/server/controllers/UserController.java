@@ -56,7 +56,7 @@ class UserController {
         if (id == null)
             return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (tempUserReset.get(id) == null) {
-            return new ResponseEntity<>(new ErrorJson("Invalid verification key was provided or the session has expired.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Invalid verification key was provided or the session has expired.", 404, "Not Found"), HttpStatus.NOT_FOUND);
         }
         if (body == null)
             return new ResponseEntity<>(new ErrorJson("body is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
@@ -128,7 +128,7 @@ class UserController {
         if (id == null)
             return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (tempUsers.get(id) == null)
-            return new ResponseEntity<>(new ErrorJson("Invalid session key was provided or the session has expired.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Invalid session key was provided or the session has expired.", 404, "Not Found"), HttpStatus.NOT_FOUND);
         if (body == null)
             return new ResponseEntity<>(new ErrorJson("body is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (body.get("otp") == null || body.get("otp").isEmpty())
