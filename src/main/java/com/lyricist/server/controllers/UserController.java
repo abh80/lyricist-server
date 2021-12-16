@@ -78,8 +78,14 @@ class UserController {
             User save = userRepository.save(sessionModel.user);
             tempUserReset.remove(id);
             return new ResponseEntity<>(new PrivateUser(save), HttpStatus.OK);
-        } else
+        } else {
+            sessionModel.addTry();
+            if (sessionModel.tries >= 3) {
+                tempUserReset.remove(id);
+                return new ResponseEntity<>(new ErrorJson("Invalid pin was provided for 3 times and the session has been expired. Try again after a while.", 403, "Forbidden"), HttpStatus.FORBIDDEN);
+            }
             return new ResponseEntity<>(new ErrorJson("Invalid pin was provided try again.", 401, "Unauthorized"), HttpStatus.UNAUTHORIZED);
+        }
 
     }
 
@@ -142,6 +148,11 @@ class UserController {
             } else
                 return new ResponseEntity<>(new ErrorJson("Invalid otp was provided try again.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
+            sessionModel.addTry();
+            if (sessionModel.tries >= 3) {
+                tempUsers.remove(id);
+                return new ResponseEntity<>(new ErrorJson("Invalid otp was provided for 3 times and the session has been expired. Try again after a while.", 403, "Forbidden"), HttpStatus.FORBIDDEN);
+            }
             return new ResponseEntity<>(new ErrorJson("Invalid otp was provided try again.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         }
     }
