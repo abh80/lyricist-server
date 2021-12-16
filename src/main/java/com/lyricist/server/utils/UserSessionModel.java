@@ -8,10 +8,15 @@ public class UserSessionModel {
     public User user;
     public int otp;
     public long time;
-
+    public String pin;
     public UserSessionModel(User user, int otp) {
         this.user = user;
         this.otp = otp;
+        this.time = Instant.now().toEpochMilli();
+    }
+    public UserSessionModel(User user, String pin) {
+        this.user = user;
+        this.pin = pin;
         this.time = Instant.now().toEpochMilli();
     }
 }

@@ -31,11 +31,11 @@ class UserController {
     @Autowired
     JavaMailSender javaMailSender;
     private final HashMap<String, UserSessionModel> tempUsers = new HashMap<>();
+    private final HashMap<String, UserSessionModel> tempUserReset = new HashMap<>();
 
     public UserController(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
-
 
     @Scheduled(fixedRate = 180000)
     void purgeSessions() {
@@ -44,17 +44,94 @@ class UserController {
                 tempUsers.remove(v);
             }
         });
+        tempUserReset.forEach((String v, UserSessionModel u) -> {
+            if ((Instant.now().toEpochMilli() - u.time) >= 1800000) {
+                tempUsers.remove(v);
+            }
+        });
+    }
+
+    @PostMapping("/s/reset/{id}/verify")
+    ResponseEntity<?> verifyReset(@PathVariable String id, @RequestBody(required = false) Map<String, String> body) {
+        if (id == null)
+            return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (tempUserReset.get(id) == null) {
+            return new ResponseEntity<>(new ErrorJson("Invalid verification key was provided or the session has expired.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
+        if (body == null)
+            return new ResponseEntity<>(new ErrorJson("body is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body.get("pin") == null || body.get("pin").isEmpty()) {
+            return new ResponseEntity<>(new ErrorJson("`pin` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
+        if (body.get("password") == null || body.get("password").isEmpty()) {
+            return new ResponseEntity<>(new ErrorJson("`password` field should not be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
+        UserSessionModel sessionModel = tempUserReset.get(id);
+
+        if (sessionModel.pin.equals(body.get("pin"))) {
+            String token = UserUtils.generateToken(sessionModel.user.getId());
+            while (userRepository.findUserByToken(token) != null) {
+                token = UserUtils.generateToken(sessionModel.user.getId());
+            }
+            sessionModel.user.setToken(UserUtils.generateToken(token));
+            sessionModel.user.setPassword(body.get("password"));
+            User save = userRepository.save(sessionModel.user);
+            tempUserReset.remove(id);
+            return new ResponseEntity<>(new PrivateUser(save), HttpStatus.OK);
+        } else
+            return new ResponseEntity<>(new ErrorJson("Invalid pin was provided try again.", 401, "Unauthorized"), HttpStatus.UNAUTHORIZED);
+
+    }
+
+    @PostMapping("/s/reset")
+    ResponseEntity<?> resetPassword(@RequestBody(required = false) Map<String, String> body) {
+        if (body == null)
+            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body.get("email") == null || body.get("email").isEmpty())
+            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        String email = body.get("email");
+        User user = userRepository.findUserByEmail(email);
+        if (user == null)
+            return new ResponseEntity<>(new ErrorJson("User not found.", 401, "Unauthorized"), HttpStatus.UNAUTHORIZED);
+
+        String session = UserUtils.generateSession(34);
+        while (tempUserReset.get(session) != null) {
+            session = UserUtils.generateSession(34);
+        }
+        String pin = UserUtils.generateSession(18);
+        UserSessionModel sessionModel = new UserSessionModel(user, pin);
+        if (tempUserReset.containsValue(sessionModel)) {
+            tempUserReset.forEach((String v, UserSessionModel u) -> {
+                if (u.user.getEmail().equals(user.getEmail())) tempUserReset.remove(v);
+            });
+        }
+        tempUserReset.put(session, sessionModel);
+        HashMap<String, String> resp = new HashMap<>();
+        resp.put("success", "true");
+        resp.put("session", session);
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            message.setSubject("Reset your password for Lyricist");
+            MimeMessageHelper messageHelper = new MimeMessageHelper(message, true);
+            messageHelper.setTo(user.getEmail());
+            messageHelper.setFrom("lyricistms@gmail.com");
+            messageHelper.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/PasswordResetTemplate.html").replace("${name}", user.getName()).replace("${code}", pin), true);
+            javaMailSender.send(message);
+        } catch (Exception e) {
+            return new ResponseEntity<>(new ErrorJson("Failed to send email.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
+        return new ResponseEntity<>(resp, HttpStatus.OK);
     }
 
     @PostMapping("/sessions/{id}/verify")
-    ResponseEntity<?> verifySession(@PathVariable String id, @RequestBody Map<String, String> body) {
+    ResponseEntity<?> verifySession(@PathVariable String id, @RequestBody(required = false) Map<String, String> body) {
         if (id == null)
             return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (tempUsers.get(id) == null)
             return new ResponseEntity<>(new ErrorJson("Invalid session key was provided or the session has expired.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (body == null)
             return new ResponseEntity<>(new ErrorJson("body is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
-        if (body.get("otp") == null)
+        if (body.get("otp") == null || body.get("otp").isEmpty())
             return new ResponseEntity<>(new ErrorJson("`otp` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         UserSessionModel sessionModel = tempUsers.get(id);
         try {
@@ -93,7 +170,11 @@ class UserController {
         while (userRepository.findById(uid).isPresent()) {
             uid = UserUtils.generateUID();
         }
-        User user = new User(uid, (String) body.get("name"), new String[]{"user"}, (String) body.get("email"), (String) body.get("image"), (String) body.get("password"), UserUtils.generateToken(uid));
+        String token = UserUtils.generateToken(uid);
+        while (userRepository.findUserByToken(token) != null) {
+            token = UserUtils.generateToken(uid);
+        }
+        User user = new User(uid, (String) body.get("name"), new String[]{"user"}, (String) body.get("email"), (String) body.get("image"), (String) body.get("password"), token);
         int otp = new Random().nextInt(900000) + 100000;
         String session = UserUtils.generateSession();
         while (tempUsers.get(session) != null) {
