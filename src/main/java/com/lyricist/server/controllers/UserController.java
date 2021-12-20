@@ -10,17 +10,18 @@ import com.lyricist.server.utils.UserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
 import javax.mail.internet.MimeMessage;
+import javax.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.time.Instant;
 import java.util.*;
 
+@CrossOrigin
 @RestController
 @RequestMapping(value = "/api/v1")
 class UserController {
@@ -32,6 +33,8 @@ class UserController {
     JavaMailSender javaMailSender;
     private final HashMap<String, UserSessionModel> tempUsers = new HashMap<>();
     private final HashMap<String, UserSessionModel> tempUserReset = new HashMap<>();
+
+    private final UserUtils userUtils = new UserUtils();
 
     public UserController(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -158,12 +161,15 @@ class UserController {
     }
 
     @PostMapping("/users")
-    ResponseEntity<?> createUser(@RequestBody(required = false) Map<String, Object> body) {
-
+    ResponseEntity<?> createUser(@RequestBody(required = false) Map<String, Object> body, HttpServletRequest request) {
         if (body == null) {
             return new ResponseEntity<>(new ErrorJson("Body cannot be null.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         }
-
+        if (body.get("captcha_response") == null)
+            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (!userUtils.verifyCaptchaResponse((String) body.get("captcha_response"), request.getRemoteAddr())) {
+            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request"), HttpStatus.BAD_REQUEST);
+        }
         if (body.get("name") == null) {
             return new ResponseEntity<>(new ErrorJson("`name` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         } else if (body.get("email") == null) {
@@ -177,6 +183,7 @@ class UserController {
         } else if (body.get("image") != null) {
             body.put("image", null);
         }
+
         String uid = UserUtils.generateUID();
         while (userRepository.findById(uid).isPresent()) {
             uid = UserUtils.generateUID();
@@ -253,9 +260,13 @@ class UserController {
     }
 
     @PostMapping("/s/login")
-    ResponseEntity<?> login(@RequestBody(required = false) Map<String, String> body) {
+    ResponseEntity<?> login(@RequestBody(required = false) Map<String, String> body, HttpServletRequest request) {
         if (body == null)
             return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (body.get("captcha_response") == null)
+            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+        if (!userUtils.verifyCaptchaResponse(body.get("captcha_response"), request.getRemoteAddr()))
+            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request"), HttpStatus.BAD_REQUEST);
         if (body.get("email") == null || body.get("email").isEmpty())
             return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         else if (body.get("password") == null || body.get("password").isEmpty())

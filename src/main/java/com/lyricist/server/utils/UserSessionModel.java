@@ -23,8 +23,7 @@ public class UserSessionModel {
         this.time = Instant.now().toEpochMilli();
     }
 
-    public int addTry() {
+    public void addTry() {
         this.tries = this.tries + 1;
-        return this.tries;
     }
 }

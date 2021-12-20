@@ -2,6 +2,7 @@ package com.lyricist.server;
 
 import com.diogonunes.jcolor.Ansi;
 import com.diogonunes.jcolor.Attribute;
+import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -31,7 +32,7 @@ public class Util {
 
     public static String readFile(String absolutePath) {
         try {
-            File file = new File(absolutePath);
+            File file = new ClassPathResource(absolutePath).getFile();
             FileInputStream stream = new FileInputStream(file);
             byte[] chunks = new byte[(int) file.length()];
             stream.read(chunks);
