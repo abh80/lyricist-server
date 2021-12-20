@@ -14,10 +14,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
-
 import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
-import java.io.File;
 import java.time.Instant;
 import java.util.*;
 
@@ -124,7 +122,7 @@ class UserController {
             MimeMessageHelper messageHelper = new MimeMessageHelper(message, true);
             messageHelper.setTo(user.getEmail());
             messageHelper.setFrom("lyricistms@gmail.com");
-            messageHelper.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/PasswordResetTemplate.html").replace("${name}", user.getName()).replace("${code}", pin), true);
+            messageHelper.setText(Util.readFile("PasswordResetTemplate.html").replace("${name}", user.getName()).replace("${code}", pin), true);
             javaMailSender.send(message);
         } catch (Exception e) {
             return new ResponseEntity<>(new ErrorJson("Failed to send email.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
@@ -206,7 +204,7 @@ class UserController {
             MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mailMessage, true);
             mimeMessageHelper.setTo(user.getEmail());
             mimeMessageHelper.setFrom("lyricistms@gmail.com");
-            mimeMessageHelper.setText(Util.readFile(new File("").getAbsolutePath() + "/src/main/resources/OtpTemplate.html").replace("${name}", user.getName()).replace("${code}", Integer.toString(otp)), true);
+            mimeMessageHelper.setText(Util.readFile("OtpTemplate.html").replace("${name}", user.getName()).replace("${code}", Integer.toString(otp)), true);
             javaMailSender.send(mailMessage);
             UserSessionModel sessionModel = new UserSessionModel(user, otp);
             if (tempUsers.containsValue(sessionModel)) {
