@@ -3,10 +3,13 @@ package com.lyricist.server;
 import com.diogonunes.jcolor.Ansi;
 import com.diogonunes.jcolor.Attribute;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.util.FileCopyUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -32,12 +35,10 @@ public class Util {
 
     public static String readFile(String absolutePath) {
         try {
-            File file = new ClassPathResource(absolutePath).getFile();
-            FileInputStream stream = new FileInputStream(file);
-            byte[] chunks = new byte[(int) file.length()];
-            stream.read(chunks);
-            stream.close();
-            return new String(chunks, StandardCharsets.UTF_8);
+            InputStream stream =  new ClassPathResource(absolutePath).getInputStream();
+            byte[] data = FileCopyUtils.copyToByteArray(stream);
+            return  new String(data, StandardCharsets.UTF_8);
+
         } catch (IOException e) {
             error(e.getMessage());
             return "500 server ran into an error!";
