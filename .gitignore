@@ -35,3 +35,4 @@ out/
 application.properties
 ### VS Code ###
 .vscode/
+build/
