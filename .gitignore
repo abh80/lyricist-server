@@ -1,6 +1,5 @@
 HELP.md
 .gradle
-build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -33,7 +32,6 @@ out/
 /nbdist/
 /.nb-gradle/
 
+application.properties
 ### VS Code ###
 .vscode/
-
-src/main/resources/application.properties

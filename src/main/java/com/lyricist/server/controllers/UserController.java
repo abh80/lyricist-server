@@ -3,10 +3,7 @@ package com.lyricist.server.controllers;
 import com.lyricist.server.Util;
 import com.lyricist.server.database.User;
 import com.lyricist.server.database.UserRepository;
-import com.lyricist.server.utils.ErrorJson;
-import com.lyricist.server.utils.PrivateUser;
-import com.lyricist.server.utils.UserSessionModel;
-import com.lyricist.server.utils.UserUtils;
+import com.lyricist.server.utils.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +11,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
+
 import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Instant;
@@ -93,9 +91,9 @@ class UserController {
     @PostMapping("/s/reset")
     ResponseEntity<?> resetPassword(@RequestBody(required = false) Map<String, String> body) {
         if (body == null)
-            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request",ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         if (body.get("email") == null || body.get("email").isEmpty())
-            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request",ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         String email = body.get("email");
         User user = userRepository.findUserByEmail(email);
         if (user == null)
@@ -161,19 +159,19 @@ class UserController {
     @PostMapping("/users")
     ResponseEntity<?> createUser(@RequestBody(required = false) Map<String, Object> body, HttpServletRequest request) {
         if (body == null) {
-            return new ResponseEntity<>(new ErrorJson("Body cannot be null.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Body cannot be null.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         }
         if (body.get("captcha_response") == null)
-            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         if (!userUtils.verifyCaptchaResponse((String) body.get("captcha_response"), request.getRemoteAddr())) {
-            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request", ErrorCodes.CAPTCHA_INVALID), HttpStatus.BAD_REQUEST);
         }
         if (body.get("name") == null) {
-            return new ResponseEntity<>(new ErrorJson("`name` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`name` field cannot be empty.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         } else if (body.get("email") == null) {
-            return new ResponseEntity<>(new ErrorJson("`email` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`email` field cannot be empty.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         } else if (body.get("password") == null) {
-            return new ResponseEntity<>(new ErrorJson("`password` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`password` field cannot be empty.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         } else if (!UserUtils.validateEmail((String) body.get("email"))) {
             return new ResponseEntity<>(new ErrorJson("email address is not valid.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
         } else if (userRepository.findUserByEmail((String) body.get("email")) != null) {
@@ -227,7 +225,7 @@ class UserController {
     @GetMapping("/users/d/{id}")
     ResponseEntity<?> getUser(@PathVariable String id) {
         if (id == null) {
-            return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`id` path variable is missing.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_PARAMS), HttpStatus.BAD_REQUEST);
         }
         Optional<User> user = userRepository.findById(id);
         if (!user.isPresent()) {
@@ -241,9 +239,9 @@ class UserController {
     ResponseEntity<?> searchUser(@RequestParam(required = false) Map<String, String> query) {
         int limit = 5;
         if (query == null)
-            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_PARAMS), HttpStatus.BAD_REQUEST);
         if (query.get("q") == null || query.get("q").isEmpty()) {
-            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`q` param is missing.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_PARAMS), HttpStatus.BAD_REQUEST);
         }
         if (query.get("limit") != null && !query.get("limit").isEmpty()) {
             try {
@@ -260,40 +258,40 @@ class UserController {
     @PostMapping("/s/login")
     ResponseEntity<?> login(@RequestBody(required = false) Map<String, String> body, HttpServletRequest request) {
         if (body == null)
-            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Body cannot be blank.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         if (body.get("captcha_response") == null)
-            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`captcha_response` field cannot be empty.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_HEADERS), HttpStatus.BAD_REQUEST);
         if (!userUtils.verifyCaptchaResponse(body.get("captcha_response"), request.getRemoteAddr()))
-            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("Captcha response is invalid.", 401, "Bad Request", ErrorCodes.CAPTCHA_INVALID), HttpStatus.BAD_REQUEST);
         if (body.get("email") == null || body.get("email").isEmpty())
-            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`email` field cannot be blank.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         else if (body.get("password") == null || body.get("password").isEmpty())
-            return new ResponseEntity<>(new ErrorJson("`password` field cannot be blank.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`password` field cannot be blank.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_BODY), HttpStatus.BAD_REQUEST);
         User user = userRepository.findUserByCredentials(body.get("email"), body.get("password"));
         if (user == null)
-            return new ResponseEntity<>(new ErrorJson("Credentials are invalid.", 401, "Unauthorized"), HttpStatus.UNAUTHORIZED);
+            return new ResponseEntity<>(new ErrorJson("Credentials are invalid.", 401, "Unauthorized", ErrorCodes.INVALID_CREDENTIALS), HttpStatus.UNAUTHORIZED);
         else return new ResponseEntity<>(new PrivateUser(user), HttpStatus.OK);
     }
 
     @GetMapping("/users/me")
     ResponseEntity<?> getMe(@RequestHeader(required = false) Map<String, String> headers) {
         if (headers == null) {
-            return new ResponseEntity<>(new ErrorJson("`authorization` field is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`authorization` field is missing.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_HEADERS), HttpStatus.BAD_REQUEST);
         } else if (headers.get("authorization") == null) {
-            return new ResponseEntity<>(new ErrorJson("`authorization` field is missing.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`authorization` field is missing.", 400, "Bad Request", ErrorCodes.MISSING_REQUIRED_HEADERS), HttpStatus.BAD_REQUEST);
         }
         String authHeader = headers.get("authorization");
         if (authHeader.toLowerCase().startsWith("bearer")) {
             if (authHeader.split(" ").length != 2)
-                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request", ErrorCodes.TOKEN_NOT_VALID), HttpStatus.BAD_REQUEST);
             String token = authHeader.split(" ")[1];
             User user = userRepository.findUserByToken(token);
             if (user != null) {
                 return new ResponseEntity<>(new PrivateUser(user), HttpStatus.OK);
             } else
-                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+                return new ResponseEntity<>(new ErrorJson("Invalid token provided.", 400, "Bad Request", ErrorCodes.TOKEN_NOT_VALID), HttpStatus.BAD_REQUEST);
         } else {
-            return new ResponseEntity<>(new ErrorJson("`authorization` field has an incorrect prefix.", 400, "Bad Request"), HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(new ErrorJson("`authorization` field has an incorrect prefix.", 400, "Bad Request", ErrorCodes.AUTHORIZATION_ERROR), HttpStatus.BAD_REQUEST);
         }
     }
 }
